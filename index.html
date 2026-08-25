@@ -126,9 +126,29 @@
 
         // === 3. ОПРЕДЕЛЕНИЕ ID АКЦИИ И ПОЛЬЗОВАТЕЛЯ ===
         const urlParams = new URLSearchParams(window.location.search);
-        const CURRENT_CAMPAIGN_ID = urlParams.get('campaign_id') || 
-                                    tg?.initDataUnsafe?.start_param || 
-                                    null;
+        // Функция для надежного получения ID акции из любых источников
+        function getCampaignId() {
+            // 1. Проверяем обычный URL (?campaign_id=...)
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('campaign_id')) {
+                return urlParams.get('campaign_id');
+            }
+
+            // 2. Проверяем Telegram WebApp start_param
+            if (window.Telegram?.WebApp?.initDataUnsafe?.start_param) {
+                return window.Telegram.WebApp.initDataUnsafe.start_param;
+            }
+
+            // 3. Проверяем hash-параметры (на случай редиректов)
+            const hashParams = new URLSearchParams(window.location.hash.substring(1));
+            if (hashParams.get('tgWebAppStartParam')) {
+                return hashParams.get('tgWebAppStartParam');
+            }
+
+            return null;
+        }
+
+        const CURRENT_CAMPAIGN_ID = getCampaignId();
 
         let userId = tg?.initDataUnsafe?.user?.id;
         if (!userId) {
