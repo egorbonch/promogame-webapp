@@ -124,29 +124,31 @@
             tg.expand();
         }
 
-        // === 3. УНИВЕРСАЛЬНОЕ ОПРЕДЕЛЕНИЕ ID АКЦИИ ===
+        // === УНИВЕРСАЛЬНЫЙ ПОИСК ID АКЦИИ (С ЗАЩИТОЙ ОТ ДВОЙНОГО КОДИРОВАНИЯ) ===
         function getCampaignId() {
-            // 1. Проверка из обычных GET-параметров (?campaign_id=... или ?tgWebAppStartParam=...)
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('campaign_id')) return urlParams.get('campaign_id');
-            if (urlParams.get('tgWebAppStartParam')) return urlParams.get('tgWebAppStartParam');
-
-            // 2. Проверка через Telegram SDK
+            // 1. Проверяем Telegram SDK start_param напрямую
             if (window.Telegram?.WebApp?.initDataUnsafe?.start_param) {
                 return window.Telegram.WebApp.initDataUnsafe.start_param;
             }
 
-            // 3. Проверка из ХЭША URL (#tgWebAppStartParam=...)
-            const hash = window.location.hash.substring(1);
-            const hashParams = new URLSearchParams(hash);
-            if (hashParams.get('tgWebAppStartParam')) return hashParams.get('tgWebAppStartParam');
-
-            // 4. Разбор сырых данных Telegram (tgWebAppData)
-            const tgWebAppData = hashParams.get('tgWebAppData') || urlParams.get('tgWebAppData');
-            if (tgWebAppData) {
-                const parsedData = new URLSearchParams(tgWebAppData);
-                if (parsedData.get('start_param')) return parsedData.get('start_param');
+            // 2. Декодируем весь URL 2 раза (убираем %2522 двойного кодирования Telegram)
+            let rawUrl = window.location.href;
+            try {
+                rawUrl = decodeURIComponent(decodeURIComponent(rawUrl));
+            } catch (e) {
+                try { rawUrl = decodeURIComponent(rawUrl); } catch (e2) {}
             }
+
+            // 3. Поиск UUID формата (8-4-4-4-12 символов) прямо в строке URL
+            const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+            const match = rawUrl.match(uuidRegex);
+            if (match) {
+                return match[0];
+            }
+
+            // 4. Обычные параметры GET
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('campaign_id')) return urlParams.get('campaign_id');
 
             return null;
         }
@@ -175,25 +177,16 @@
         let isDrawing = false;
         let isRevealed = false;
 
-        // === 4. ЗАГРУЗКА ДАННЫХ ИЗ SUPABASE ===
+        // Обновленная функция вывода ошибки (уже без технического отладочного мусора)
         async function loadCampaignDetails() {
             if (!CURRENT_CAMPAIGN_ID) {
-                greetingEl.innerText = 'Отладка';
-                statusEl.innerHTML = `<span class="error-msg">ID не найден.<br>URL: ${window.location.href}</span>`;
+                greetingEl.innerText = 'Ошибка';
+                statusEl.innerHTML = '<span class="error-msg">Акция не найдена.<br>Откройте ссылку из админки.</span>';
                 codeEl.innerText = 'N/A';
                 return false;
             }
-            //if (!CURRENT_CAMPAIGN_ID) {
-                //greetingEl.innerText = 'Ошибка';
-                //statusEl.innerHTML = '<span class="error-msg">Акция не найдена.<br>Откройте ссылку из админки.</span>';
-                //codeEl.innerText = 'N/A';
-                //return false;
-            //}
 
-            if (!db) {
-                console.error('Supabase клиент не инициализирован');
-                return false;
-            }
+            if (!db) return false;
 
             try {
                 const { data, error } = await db
@@ -209,13 +202,12 @@
                     codeEl.innerText = data.promo_code;
                     return true;
                 } else {
-                    greetingEl.innerText = 'Уведомление';
                     statusEl.innerText = 'Акция не найдена';
                     codeEl.innerText = 'EXPIRED';
                     return false;
                 }
             } catch (err) {
-                console.error('Ошибка загрузки акции:', err);
+                console.error('Ошибка:', err);
                 statusEl.innerText = 'Ошибка загрузки';
                 return false;
             }
