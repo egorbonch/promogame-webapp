@@ -178,11 +178,17 @@
         // === 4. ЗАГРУЗКА ДАННЫХ ИЗ SUPABASE ===
         async function loadCampaignDetails() {
             if (!CURRENT_CAMPAIGN_ID) {
-                greetingEl.innerText = 'Ошибка';
-                statusEl.innerHTML = '<span class="error-msg">Акция не найдена.<br>Откройте ссылку из админки.</span>';
+                greetingEl.innerText = 'Отладка';
+                statusEl.innerHTML = `<span class="error-msg">ID не найден.<br>URL: ${window.location.href}</span>`;
                 codeEl.innerText = 'N/A';
                 return false;
             }
+            //if (!CURRENT_CAMPAIGN_ID) {
+                //greetingEl.innerText = 'Ошибка';
+                //statusEl.innerHTML = '<span class="error-msg">Акция не найдена.<br>Откройте ссылку из админки.</span>';
+                //codeEl.innerText = 'N/A';
+                //return false;
+            //}
 
             if (!db) {
                 console.error('Supabase клиент не инициализирован');
