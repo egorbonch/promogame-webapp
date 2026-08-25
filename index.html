@@ -2,10 +2,162 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PromoGame</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Promo Scratch Card</title>
+    <!-- Подключаем Telegram WebApp SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        body {
+            background-color: var(--tg-theme-bg-color, #17212b);
+            color: var(--tg-theme-text-color, #ffffff);
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .card-wrapper {
+            position: relative;
+            width: 300px;
+            height: 180px;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            margin-top: 20px;
+        }
+        .prize-layer {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            text-align: center;
+            padding: 10px;
+        }
+        .promo-code {
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            color: #2d3436;
+            margin-top: 10px;
+            background: #ffffff;
+            padding: 8px 16px;
+            border-radius: 8px;
+        }
+        #scratch-canvas {
+            position: absolute;
+            inset: 0;
+            touch-action: none;
+            cursor: pointer;
+        }
+        .greeting {
+            font-size: 18px;
+            text-align: center;
+            font-weight: 600;
+        }
+    </style>
 </head>
 <body>
-    <h1>Промо-игра готова к запуску!</h1>
+
+    <div class="greeting" id="user-greeting">Сотри слой и забери скидку!</div>
+
+    <div class="card-wrapper">
+        <div class="prize-layer">
+            <div>Твой промокод на -20%:</div>
+            <div class="promo-code" id="code-val">SECRET20</div>
+        </div>
+        <canvas id="scratch-canvas" width="300" height="180"></canvas>
+    </div>
+
+    <script>
+        // 1. Инициализация Telegram SDK
+        const tg = window.Telegram?.WebApp;
+        if (tg) {
+            tg.ready();
+            tg.expand();
+            if (tg.initDataUnsafe?.user) {
+                document.getElementById('user-greeting').innerText = 
+                    `Привет, ${tg.initDataUnsafe.user.first_name}! Сотри слой и забери скидку:`;
+            }
+        }
+
+        // 2. Настройка Canvas
+        const canvas = document.getElementById('scratch-canvas');
+        const ctx = canvas.getContext('2d');
+        let isDrawing = false;
+
+        // Отрисовка непрозрачного защитного слоя
+        ctx.fillStyle = '#b2bec3';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.fillStyle = '#2d3436';
+        ctx.font = 'bold 16px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Сотри пальцем здесь', canvas.width / 2, canvas.height / 2 + 5);
+
+        // 3. Расчет координат (мышкой или пальцем)
+        function getPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return { x: clientX - rect.left, y: clientY - rect.top };
+        }
+
+        // 4. Процесс стирания
+        function scratch(e) {
+            if (!isDrawing) return;
+            const { x, y } = getPos(e);
+            
+            // Магия стирания: режим destination-out делает пиксели прозрачными
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.beginPath();
+            ctx.arc(x, y, 22, 0, Math.PI * 2);
+            ctx.fill();
+            
+            checkScratchPercentage();
+        }
+
+        canvas.addEventListener('mousedown', (e) => { isDrawing = true; scratch(e); });
+        canvas.addEventListener('touchstart', (e) => { isDrawing = true; scratch(e); });
+        canvas.addEventListener('mousemove', scratch);
+        canvas.addEventListener('touchmove', scratch);
+        canvas.addEventListener('mouseup', () => isDrawing = false);
+        canvas.addEventListener('touchend', () => isDrawing = false);
+
+        // 5. Проверка % стертого слоя для автораскрытия приза
+        let isRevealed = false;
+        function checkScratchPercentage() {
+            if (isRevealed) return;
+
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const pixels = imageData.data;
+            let transparentPixels = 0;
+
+            // Проверяем альфа-канал каждого 4-го пикселя для экономии CPU
+            for (let i = 3; i < pixels.length; i += 16) {
+                if (pixels[i] === 0) transparentPixels++;
+            }
+
+            const percentage = (transparentPixels / (pixels.length / 16)) * 100;
+
+            // Если стерто >45%, плавно удаляем холст и запускаем вибрацию в Telegram
+            if (percentage > 45) {
+                isRevealed = true;
+                canvas.style.transition = 'opacity 0.4s ease';
+                canvas.style.opacity = '0';
+                setTimeout(() => canvas.remove(), 400);
+
+                if (tg?.HapticFeedback) {
+                    tg.HapticFeedback.notificationOccurred('success');
+                }
+            }
+        }
+    </script>
 </body>
 </html>
