@@ -124,25 +124,28 @@
             tg.expand();
         }
 
-        // === 3. ОПРЕДЕЛЕНИЕ ID АКЦИИ И ПОЛЬЗОВАТЕЛЯ ===
-        const urlParams = new URLSearchParams(window.location.search);
-        // Функция для надежного получения ID акции из любых источников
+        // === 3. УНИВЕРСАЛЬНОЕ ОПРЕДЕЛЕНИЕ ID АКЦИИ ===
         function getCampaignId() {
-            // 1. Проверяем обычный URL (?campaign_id=...)
+            // 1. Проверка из обычных GET-параметров (?campaign_id=... или ?tgWebAppStartParam=...)
             const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('campaign_id')) {
-                return urlParams.get('campaign_id');
-            }
+            if (urlParams.get('campaign_id')) return urlParams.get('campaign_id');
+            if (urlParams.get('tgWebAppStartParam')) return urlParams.get('tgWebAppStartParam');
 
-            // 2. Проверяем Telegram WebApp start_param
+            // 2. Проверка через Telegram SDK
             if (window.Telegram?.WebApp?.initDataUnsafe?.start_param) {
                 return window.Telegram.WebApp.initDataUnsafe.start_param;
             }
 
-            // 3. Проверяем hash-параметры (на случай редиректов)
-            const hashParams = new URLSearchParams(window.location.hash.substring(1));
-            if (hashParams.get('tgWebAppStartParam')) {
-                return hashParams.get('tgWebAppStartParam');
+            // 3. Проверка из ХЭША URL (#tgWebAppStartParam=...)
+            const hash = window.location.hash.substring(1);
+            const hashParams = new URLSearchParams(hash);
+            if (hashParams.get('tgWebAppStartParam')) return hashParams.get('tgWebAppStartParam');
+
+            // 4. Разбор сырых данных Telegram (tgWebAppData)
+            const tgWebAppData = hashParams.get('tgWebAppData') || urlParams.get('tgWebAppData');
+            if (tgWebAppData) {
+                const parsedData = new URLSearchParams(tgWebAppData);
+                if (parsedData.get('start_param')) return parsedData.get('start_param');
             }
 
             return null;
