@@ -4,83 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Конструктор PromoGame</title>
-    <!-- Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        body {
-            background-color: #0f172a;
-            color: #f8fafc;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .container {
-            background: #1e293b;
-            padding: 30px;
-            border-radius: 16px;
-            width: 100%;
-            max-width: 460px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            border: 1px solid #334155;
-        }
+        body { background-color: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        .container { background: #1e293b; padding: 30px; border-radius: 16px; width: 100%; max-width: 460px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #334155; }
         h1 { font-size: 22px; margin-bottom: 8px; text-align: center; color: #38bdf8; }
         p.sub { font-size: 14px; color: #94a3b8; margin-bottom: 24px; text-align: center; }
-        
         .form-group { margin-bottom: 18px; }
         label { display: block; font-size: 14px; margin-bottom: 6px; color: #cbd5e1; }
-        input {
-            width: 100%;
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid #475569;
-            background: #0f172a;
-            color: #ffffff;
-            font-size: 15px;
-            outline: none;
-        }
+        input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #ffffff; font-size: 15px; outline: none; }
         input:focus { border-color: #38bdf8; }
-        
-        button {
-            width: 100%;
-            padding: 14px;
-            border-radius: 8px;
-            border: none;
-            background: #0284c7;
-            color: #ffffff;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
+        button { width: 100%; padding: 14px; border-radius: 8px; border: none; background: #0284c7; color: #ffffff; font-size: 16px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
         button:hover { background: #0369a1; }
-
-        .result-box {
-            margin-top: 24px;
-            padding: 16px;
-            background: #0f172a;
-            border: 1px dashed #38bdf8;
-            border-radius: 8px;
-            display: none;
-        }
-        .result-title { font-size: 13px; color: #94a3b8; margin-bottom: 8px; font-weight: 600; }
-        .link-text { 
-            font-size: 12px; 
-            color: #38bdf8; 
-            word-break: break-all; 
-            background: #1e293b; 
-            padding: 10px; 
-            border-radius: 6px;
-            margin-bottom: 12px;
-            border: 1px solid #334155;
-        }
-        .copy-btn {
-            background: #334155;
-            padding: 10px;
-            font-size: 14px;
-        }
+        .result-box { margin-top: 24px; padding: 16px; background: #0f172a; border: 1px dashed #38bdf8; border-radius: 8px; display: none; }
+        .result-title { font-size: 13px; color: #94a3b8; margin-bottom: 6px; font-weight: 600; }
+        .link-text { font-size: 12px; color: #38bdf8; word-break: break-all; background: #1e293b; padding: 10px; border-radius: 6px; margin-bottom: 14px; border: 1px solid #334155; }
+        .copy-btn { background: #334155; padding: 10px; font-size: 14px; margin-top: 6px; }
         .copy-btn:hover { background: #475569; }
     </style>
 </head>
@@ -88,55 +28,54 @@
 
     <div class="container">
         <h1>Создать промо-акцию</h1>
-        <p class="sub">Заполните форму для получения ссылки на WebApp</p>
+        <p class="sub">Панель генерации ссылок WebApp</p>
 
         <form id="campaign-form">
             <div class="form-group">
                 <label for="title">Название акции / Заголовок</label>
-                <input type="text" id="title" placeholder="например: Скидка 15% на первое посещение" required>
+                <input type="text" id="title" placeholder="например: Скидка 15% на заказы" required>
             </div>
 
             <div class="form-group">
                 <label for="promo">Промокод</label>
-                <input type="text" id="promo" placeholder="например: TEST15" required>
+                <input type="text" id="promo" placeholder="например: SALE15" required>
             </div>
 
             <button type="submit" id="submit-btn">Сгенерировать ссылку</button>
         </form>
 
         <div class="result-box" id="result-box">
-            <div class="result-title">Прямая WebApp ссылка:</div>
-            <div class="link-text" id="generated-link">...</div>
-
-            <div class="result-title">Ссылка для Telegram бота (Direct Link):</div>
+            <div class="result-title">1. Прямая ссылка для Telegram (для рассылок и кнопок):</div>
             <div class="link-text" id="tg-link">...</div>
 
-            <button class="copy-btn" id="copy-btn">Скопировать WebApp ссылку</button>
+            <div class="result-title">2. Прямая Web-ссылка (для браузеров):</div>
+            <div class="link-text" id="web-link">...</div>
+
+            <button class="copy-btn" id="copy-btn">Скопировать Telegram ссылку</button>
         </div>
     </div>
 
     <script>
-        // === НАСТРОЙКИ SUPABASE И БОТА (ВСТАВЬ СВОИ ДАННЫЕ) ===
+        // === УКАЖИТЕ ВАШИ НАСТРОЙКИ ===
         const SUPABASE_URL = 'https://xvadcrlhexeiieskxefh.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2YWRjcmxoZXhlaWllc2t4ZWZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2NjYzMzQsImV4cCI6MjEwMzI0MjMzNH0.FIUTCgdKE6NMocZPY95bfg9mnWh3kWaBkxp1OCX7UHk';
-        const BOT_USERNAME = 'my_promogame_bot'; // например: my_promogame_bot
+        
+        // Данные бота из BotFather:
+        const BOT_USERNAME = 'my_promogame_bot';   // без @
+        const APP_SHORT_NAME = 'PromoCode';               // Short Name из /newapp в BotFather
 
         const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
         const form = document.getElementById('campaign-form');
         const submitBtn = document.getElementById('submit-btn');
         const resultBox = document.getElementById('result-box');
-        const generatedLinkEl = document.getElementById('generated-link');
         const tgLinkEl = document.getElementById('tg-link');
+        const webLinkEl = document.getElementById('web-link');
         const copyBtn = document.getElementById('copy-btn');
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
-            if (!db) {
-                alert('Проверьте настройки SUPABASE_URL и SUPABASE_ANON_KEY!');
-                return;
-            }
+            if (!db) { alert('Ошибка подключения к Supabase!'); return; }
 
             submitBtn.innerText = 'Создаем...';
             submitBtn.disabled = true;
@@ -147,22 +86,19 @@
             try {
                 const { data, error } = await db
                     .from('campaigns')
-                    .insert([{
-                        owner_telegram_id: 0,
-                        title: title,
-                        promo_code: promo
-                    }])
+                    .insert([{ owner_telegram_id: 0, title: title, promo_code: promo }])
                     .select()
                     .single();
 
                 if (error) throw error;
 
-                const baseUrl = window.location.origin + '/index.html';
-                const gameUrl = `${baseUrl}?campaign_id=${data.id}`;
-                const tgUrl = `https://t.me/${BOT_USERNAME}?startapp=${data.id}`;
+                // Генерация прямых ссылок
+                const tgUrl = `https://t.me/${BOT_USERNAME}/${APP_SHORT_NAME}?startapp=${data.id}`;
+                const baseUrl = window.location.origin + window.location.pathname.replace('admin.html', 'index.html');
+                const webUrl = `${baseUrl}?campaign_id=${data.id}`;
 
-                generatedLinkEl.innerText = gameUrl;
                 tgLinkEl.innerText = tgUrl;
+                webLinkEl.innerText = webUrl;
                 resultBox.style.display = 'block';
 
             } catch (err) {
@@ -174,9 +110,9 @@
         });
 
         copyBtn.addEventListener('click', () => {
-            navigator.clipboard.writeText(generatedLinkEl.innerText);
+            navigator.clipboard.writeText(tgLinkEl.innerText);
             copyBtn.innerText = 'Скопировано!';
-            setTimeout(() => copyBtn.innerText = 'Скопировать WebApp ссылку', 2000);
+            setTimeout(() => copyBtn.innerText = 'Скопировать Telegram ссылку', 2000);
         });
     </script>
 </body>
