@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Promo Scratch Card</title>
-    <!-- Telegram SDK -->
+    <!-- SDK Telegram WebApp -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- Supabase JS Client (через CDN) -->
+    <!-- SDK Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
@@ -57,6 +57,8 @@
             inset: 0;
             touch-action: none;
             cursor: pointer;
+            /* Скрыт по умолчанию до проверки защиты */
+            display: none; 
         }
         .greeting {
             font-size: 18px;
@@ -68,12 +70,13 @@
             color: #00b894;
             margin-top: 8px;
             font-weight: bold;
+            display: inline-block;
         }
     </style>
 </head>
 <body>
 
-    <div class="greeting" id="user-greeting">Загрузка...</div>
+    <div class="greeting" id="user-greeting">Проверка статуса...</div>
 
     <div class="card-wrapper">
         <div class="prize-layer">
@@ -84,34 +87,86 @@
     </div>
 
     <script>
-        // --- 1. Конфигурация Supabase ---
+        // === 1. КОНФИГУРАЦИЯ (ВСТАВЬ СВОИ ДАННЫЕ) ===
         const SUPABASE_URL = 'https://xvadcrlhexeiieskxefh.supabase.co/rest/v1/';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2YWRjcmxoZXhlaWllc2t4ZWZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2NjYzMzQsImV4cCI6MjEwMzI0MjMzNH0.FIUTCgdKE6NMocZPY95bfg9mnWh3kWaBkxp1OCX7UHk';
-        const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-        // ID тестовой акции (позже будет динамическим из URL)
         const CURRENT_CAMPAIGN_ID = '00000000-0000-0000-0000-000000000001';
 
-        // --- 2. Инициализация Telegram SDK ---
-        const tg = window.Telegram?.WebApp;
-        let userId = null;
+        // Инициализация Supabase
+        const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
+        // === 2. ИНИЦИАЛИЗАЦИЯ TELEGRAM ===
+        const tg = window.Telegram?.WebApp;
         if (tg) {
             tg.ready();
             tg.expand();
-            userId = tg.initDataUnsafe?.user?.id || 123456789; // Тестовый ID для браузера ПК
-            
-            const name = tg.initDataUnsafe?.user?.first_name || 'Гость';
-            document.getElementById('user-greeting').innerText = `Привет, ${name}! Сотри слой и забери скидку:`;
         }
 
+        // Получаем Telegram ID пользователя (или генерируем постоянный тест-ID для браузера ПК)
+        let userId = tg?.initDataUnsafe?.user?.id;
+        if (!userId) {
+            userId = localStorage.getItem('demo_user_id');
+            if (!userId) {
+                userId = 'test_user_' + Math.floor(Math.random() * 1000000);
+                localStorage.setItem('demo_user_id', userId);
+            }
+        } else {
+            userId = String(userId);
+        }
+
+        const CACHE_KEY = `claimed_${CURRENT_CAMPAIGN_ID}_${userId}`;
         const canvas = document.getElementById('scratch-canvas');
         const ctx = canvas.getContext('2d');
+        const greetingEl = document.getElementById('user-greeting');
+        const statusEl = document.getElementById('prize-status');
+
         let isDrawing = false;
         let isRevealed = false;
 
-        // --- 3. Отрисовка холста ---
+        // === 3. ОСНОВНАЯ ЛОГИКА ПРОВЕРКИ И СТАРТА ===
+        async function startApp() {
+            const userName = tg?.initDataUnsafe?.user?.first_name || 'Гость';
+            greetingEl.innerText = `Привет, ${userName}!`;
+
+            // Уровень 1: Локальная быстрая проверка
+            if (localStorage.getItem(CACHE_KEY) === 'true') {
+                showClaimedUI();
+                return;
+            }
+
+            // Уровень 2: Проверка в Supabase
+            if (db) {
+                try {
+                    const { data } = await db
+                        .from('claims')
+                        .select('id')
+                        .eq('campaign_id', CURRENT_CAMPAIGN_ID)
+                        .eq('user_telegram_id', userId)
+                        .maybeSingle();
+
+                    if (data) {
+                        localStorage.setItem(CACHE_KEY, 'true');
+                        showClaimedUI();
+                        return;
+                    }
+                } catch (e) {
+                    console.error('Ошибка проверки в базе:', e);
+                }
+            }
+
+            // Защита не сработала (пользователь участвует впервые) -> показываем холст
+            initCanvas();
+        }
+
+        function showClaimedUI() {
+            canvas.style.display = 'none';
+            greetingEl.innerText = `С возвращением!`;
+            statusEl.innerHTML = `Вы уже забрали этот промокод:<br><span class="already-claimed">Использовано</span>`;
+        }
+
+        // === 4. ОТРИСОВКА И СТИРАНИЕ CANVAS ===
         function initCanvas() {
+            canvas.style.display = 'block';
             ctx.fillStyle = '#b2bec3';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = '#2d3436';
@@ -120,43 +175,6 @@
             ctx.fillText('Сотри пальцем здесь', canvas.width / 2, canvas.height / 2 + 5);
         }
 
-        // --- Проверка повторного участия ---
-        async function checkAlreadyClaimed() {
-            if (!userId) {
-                initCanvas();
-                return;
-            }
-
-            try {
-                const { data, error } = await db
-                    .from('claims')
-                    .select('id')
-                    .eq('campaign_id', CURRENT_CAMPAIGN_ID)
-                    .eq('user_telegram_id', userId)
-                    .maybeSingle();
-
-                if (error) {
-                console.error('Ошибка Supabase Select:', error.message);
-                    initCanvas();
-                    return;
-                }
-
-                if (data) {
-                    // Запись найдена: удаляем холст и показываем статус
-                    canvas.remove();
-                    document.getElementById('user-greeting').innerText = `С возвращением!`;
-                    document.getElementById('prize-status').innerHTML = `Вы уже забрали этот промокод:<br><span class="already-claimed">Использовано</span>`;
-                } else {
-                    // Записи нет: отрисовываем холст для стирания
-                    initCanvas();
-                }
-            } catch (err) {
-                console.error('Сетевая ошибка:', err);
-                initCanvas();
-            }
-        }
-
-        // --- 5. Логика стирания ---
         function getPos(e) {
             const rect = canvas.getBoundingClientRect();
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -165,7 +183,7 @@
         }
 
         function scratch(e) {
-            if (!isDrawing || !canvas.parentElement) return;
+            if (!isDrawing || isRevealed) return;
             const { x, y } = getPos(e);
             
             ctx.globalCompositeOperation = 'destination-out';
@@ -183,25 +201,8 @@
         canvas.addEventListener('mouseup', () => isDrawing = false);
         canvas.addEventListener('touchend', () => isDrawing = false);
 
-        // --- Сохранение попытки в базу ---
-        async function saveClaimToDb() {
-            if (!userId) return;
-    
-            const { error } = await db.from('claims').insert([
-                { 
-                    campaign_id: CURRENT_CAMPAIGN_ID, 
-                    user_telegram_id: userId 
-                }
-            ]);
-
-            if (error) {
-                console.error('Ошибка сохранение в БД:', error.message);
-            } else {
-                console.log('Попытка успешно сохранена в базу!');
-            }
-        }
-
-        function checkScratchPercentage() {
+        // === 5. ФИКСАЦИЯ ПОБЕДЫ И ЗАПИСЬ ДАННЫХ ===
+        async function checkScratchPercentage() {
             if (isRevealed) return;
 
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -217,21 +218,32 @@
             if (percentage > 45) {
                 isRevealed = true;
                 
-                // Фиксируем выборку в базе данных
-                saveClaimToDb();
+                // Мгновенно сохраняем флаг локально
+                localStorage.setItem(CACHE_KEY, 'true');
 
-                canvas.style.transition = 'opacity 0.4s ease';
-                canvas.style.opacity = '0';
-                setTimeout(() => canvas.remove(), 400);
+                // Асинхронно записываем в Supabase
+                if (db) {
+                    db.from('claims').insert([
+                        { campaign_id: CURRENT_CAMPAIGN_ID, user_telegram_id: userId }
+                    ]).then(({ error }) => {
+                        if (error) console.error('Ошибка записи в Supabase:', error.message);
+                    });
+                }
 
+                // Виброотклик Telegram
                 if (tg?.HapticFeedback) {
                     tg.HapticFeedback.notificationOccurred('success');
                 }
+
+                // Анимация скрытия холста
+                canvas.style.transition = 'opacity 0.4s ease';
+                canvas.style.opacity = '0';
+                setTimeout(() => canvas.remove(), 400);
             }
         }
 
-        // Старт проверки при загрузке страницы
-        checkAlreadyClaimed();
+        // Запуск
+        startApp();
     </script>
 </body>
 </html>
