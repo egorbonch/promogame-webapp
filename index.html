@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Promo Scratch Card</title>
-    <!-- Подключаем Telegram WebApp SDK -->
+    <!-- Telegram SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Supabase JS Client (через CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
         body {
@@ -61,47 +63,85 @@
             text-align: center;
             font-weight: 600;
         }
+        .already-claimed {
+            font-size: 14px;
+            color: #00b894;
+            margin-top: 8px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
 
-    <div class="greeting" id="user-greeting">Сотри слой и забери скидку!</div>
+    <div class="greeting" id="user-greeting">Загрузка...</div>
 
     <div class="card-wrapper">
         <div class="prize-layer">
-            <div>Твой промокод на -20%:</div>
+            <div id="prize-status">Твой промокод на -20%:</div>
             <div class="promo-code" id="code-val">SECRET20</div>
         </div>
         <canvas id="scratch-canvas" width="300" height="180"></canvas>
     </div>
 
     <script>
-        // 1. Инициализация Telegram SDK
+        // --- 1. Конфигурация Supabase ---
+        const SUPABASE_URL = 'https://xvadcrlhexeiieskxefh.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2YWRjcmxoZXhlaWllc2t4ZWZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2NjYzMzQsImV4cCI6MjEwMzI0MjMzNH0.FIUTCgdKE6NMocZPY95bfg9mnWh3kWaBkxp1OCX7UHk';
+        const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // ID тестовой акции (позже будет динамическим из URL)
+        const CURRENT_CAMPAIGN_ID = '00000000-0000-0000-0000-000000000001';
+
+        // --- 2. Инициализация Telegram SDK ---
         const tg = window.Telegram?.WebApp;
+        let userId = null;
+
         if (tg) {
             tg.ready();
             tg.expand();
-            if (tg.initDataUnsafe?.user) {
-                document.getElementById('user-greeting').innerText = 
-                    `Привет, ${tg.initDataUnsafe.user.first_name}! Сотри слой и забери скидку:`;
-            }
+            userId = tg.initDataUnsafe?.user?.id || 123456789; // Тестовый ID для браузера ПК
+            
+            const name = tg.initDataUnsafe?.user?.first_name || 'Гость';
+            document.getElementById('user-greeting').innerText = `Привет, ${name}! Сотри слой и забери скидку:`;
         }
 
-        // 2. Настройка Canvas
         const canvas = document.getElementById('scratch-canvas');
         const ctx = canvas.getContext('2d');
         let isDrawing = false;
+        let isRevealed = false;
 
-        // Отрисовка непрозрачного защитного слоя
-        ctx.fillStyle = '#b2bec3';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        ctx.fillStyle = '#2d3436';
-        ctx.font = 'bold 16px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('Сотри пальцем здесь', canvas.width / 2, canvas.height / 2 + 5);
+        // --- 3. Отрисовка холста ---
+        function initCanvas() {
+            ctx.fillStyle = '#b2bec3';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#2d3436';
+            ctx.font = 'bold 16px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Сотри пальцем здесь', canvas.width / 2, canvas.height / 2 + 5);
+        }
 
-        // 3. Расчет координат (мышкой или пальцем)
+        // --- 4. Проверка повторного участия в базе данных ---
+        async function checkAlreadyClaimed() {
+            if (!userId) return;
+
+            const { data, error } = await db
+                .from('claims')
+                .select('*')
+                .eq('campaign_id', CURRENT_CAMPAIGN_ID)
+                .eq('user_telegram_id', userId)
+                .maybeSingle();
+
+            if (data) {
+                // Если пользователь уже получал приз, удаляем защитный слой без игры
+                canvas.remove();
+                document.getElementById('user-greeting').innerText = `С возвращением!`;
+                document.getElementById('prize-status').innerHTML = `Вы уже забрали этот промокод:<br><span class="already-claimed">Использовано</span>`;
+            } else {
+                initCanvas();
+            }
+        }
+
+        // --- 5. Логика стирания ---
         function getPos(e) {
             const rect = canvas.getBoundingClientRect();
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -109,12 +149,10 @@
             return { x: clientX - rect.left, y: clientY - rect.top };
         }
 
-        // 4. Процесс стирания
         function scratch(e) {
-            if (!isDrawing) return;
+            if (!isDrawing || !canvas.parentElement) return;
             const { x, y } = getPos(e);
             
-            // Магия стирания: режим destination-out делает пиксели прозрачными
             ctx.globalCompositeOperation = 'destination-out';
             ctx.beginPath();
             ctx.arc(x, y, 22, 0, Math.PI * 2);
@@ -130,8 +168,18 @@
         canvas.addEventListener('mouseup', () => isDrawing = false);
         canvas.addEventListener('touchend', () => isDrawing = false);
 
-        // 5. Проверка % стертого слоя для автораскрытия приза
-        let isRevealed = false;
+        // --- 6. Запись получения приза в Supabase ---
+        async function saveClaimToDb() {
+            if (!userId) return;
+            
+            await db.from('claims').insert([
+                { 
+                    campaign_id: CURRENT_CAMPAIGN_ID, 
+                    user_telegram_id: userId 
+                }
+            ]);
+        }
+
         function checkScratchPercentage() {
             if (isRevealed) return;
 
@@ -139,16 +187,18 @@
             const pixels = imageData.data;
             let transparentPixels = 0;
 
-            // Проверяем альфа-канал каждого 4-го пикселя для экономии CPU
             for (let i = 3; i < pixels.length; i += 16) {
                 if (pixels[i] === 0) transparentPixels++;
             }
 
             const percentage = (transparentPixels / (pixels.length / 16)) * 100;
 
-            // Если стерто >45%, плавно удаляем холст и запускаем вибрацию в Telegram
             if (percentage > 45) {
                 isRevealed = true;
+                
+                // Фиксируем выборку в базе данных
+                saveClaimToDb();
+
                 canvas.style.transition = 'opacity 0.4s ease';
                 canvas.style.opacity = '0';
                 setTimeout(() => canvas.remove(), 400);
@@ -158,6 +208,9 @@
                 }
             }
         }
+
+        // Старт проверки при загрузке страницы
+        checkAlreadyClaimed();
     </script>
 </body>
 </html>
