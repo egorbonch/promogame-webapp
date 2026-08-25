@@ -90,7 +90,26 @@
         // === 1. КОНФИГУРАЦИЯ (ВСТАВЬ СВОИ ДАННЫЕ) ===
         const SUPABASE_URL = 'https://xvadcrlhexeiieskxefh.supabase.co/rest/v1/';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2YWRjcmxoZXhlaWllc2t4ZWZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2NjYzMzQsImV4cCI6MjEwMzI0MjMzNH0.FIUTCgdKE6NMocZPY95bfg9mnWh3kWaBkxp1OCX7UHk';
-        const CURRENT_CAMPAIGN_ID = '00000000-0000-0000-0000-000000000001';
+        // Получаем campaign_id из URL (из параметров ?campaign_id=... или tg.initDataUnsafe.start_param)
+        const urlParams = new URLSearchParams(window.location.search);
+        const CURRENT_CAMPAIGN_ID = urlParams.get('campaign_id') || 
+                                    window.Telegram?.WebApp?.initDataUnsafe?.start_param || 
+                                    '00000000-0000-0000-0000-000000000001';
+
+        // Функция загрузки данных акции (промокод и описание) из Supabase
+        async function loadCampaignDetails() {
+            if (!db) return;
+            const { data } = await db
+                .from('campaigns')
+                .select('title, promo_code')
+                .eq('id', CURRENT_CAMPAIGN_ID)
+                .maybeSingle();
+
+            if (data) {
+                document.getElementById('code-val').innerText = data.promo_code;
+                document.getElementById('prize-status').innerText = data.title;
+            }
+        }
 
         // Инициализация Supabase
         const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
@@ -133,7 +152,7 @@
                 showClaimedUI();
                 return;
             }
-
+            loadCampaignDetails();
             // Уровень 2: Проверка в Supabase
             if (db) {
                 try {
