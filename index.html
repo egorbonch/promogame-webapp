@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Promo Scratch Card</title>
-    <!-- Telegram SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
@@ -21,78 +19,36 @@
             min-height: 100vh;
             padding: 20px;
         }
-        .container {
-            width: 100%;
-            max-width: 360px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .greeting {
-            font-size: 18px;
-            text-align: center;
-            font-weight: 600;
-            margin-bottom: 20px;
-            min-height: 24px;
-        }
+        .container { width: 100%; max-width: 360px; display: flex; flex-direction: column; align-items: center; }
+        .greeting { font-size: 18px; text-align: center; font-weight: 600; margin-bottom: 20px; min-height: 24px; }
         .card-wrapper {
-            position: relative;
-            width: 300px;
-            height: 180px;
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-            background: #2d3436;
+            position: relative; width: 300px; height: 180px; border-radius: 16px;
+            overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.3); background: #2d3436;
         }
         .prize-layer {
-            position: absolute;
-            inset: 0;
+            position: absolute; inset: 0;
             background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: #ffffff;
-            text-align: center;
-            padding: 15px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: #ffffff; text-align: center; padding: 15px;
         }
-        .prize-title {
-            font-size: 15px;
-            font-weight: 500;
-            margin-bottom: 8px;
-            line-height: 1.3;
-        }
+        .prize-title { font-size: 15px; font-weight: 500; margin-bottom: 8px; line-height: 1.3; }
         .promo-code {
-            font-size: 24px;
-            font-weight: bold;
-            letter-spacing: 2px;
-            color: #2d3436;
-            background: #ffffff;
-            padding: 8px 18px;
-            border-radius: 10px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            font-size: 24px; font-weight: bold; letter-spacing: 2px; color: #2d3436;
+            background: #ffffff; padding: 8px 18px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.15);
         }
-        #scratch-canvas {
-            position: absolute;
-            inset: 0;
-            touch-action: none;
-            cursor: pointer;
-            display: none; /* Скрыт до окончания проверки */
-        }
+        #scratch-canvas { position: absolute; inset: 0; touch-action: none; cursor: pointer; display: none; }
         .status-badge {
-            font-size: 14px;
-            color: #55efc4;
-            margin-top: 10px;
-            font-weight: bold;
-            display: inline-block;
-            background: rgba(0, 0, 0, 0.2);
-            padding: 4px 12px;
-            border-radius: 20px;
+            font-size: 14px; color: #55efc4; margin-top: 10px; font-weight: bold;
+            display: inline-block; background: rgba(0, 0, 0, 0.2); padding: 4px 12px; border-radius: 20px;
         }
-        .error-msg {
-            color: #ff7675;
-            font-size: 14px;
-            text-align: center;
+        .error-msg { color: #ff7675; font-size: 13px; text-align: center; line-height: 1.4; }
+        .debug-btn {
+            margin-top: 12px; background: rgba(255,255,255,0.15); border: none; color: #fff;
+            padding: 6px 12px; border-radius: 6px; font-size: 11px; cursor: pointer;
+        }
+        .debug-info {
+            display: none; margin-top: 10px; font-size: 10px; color: #dfe6e9; word-break: break-all;
+            text-align: left; background: rgba(0,0,0,0.4); padding: 8px; border-radius: 6px; max-height: 120px; overflow-y: auto;
         }
     </style>
 </head>
@@ -103,7 +59,7 @@
 
         <div class="card-wrapper">
             <div class="prize-layer">
-                <div class="prize-title" id="prize-status">Загрузка акции...</div>
+                <div class="prize-title" id="prize-status">Загрузка...</div>
                 <div class="promo-code" id="code-val">...</div>
             </div>
             <canvas id="scratch-canvas" width="300" height="180"></canvas>
@@ -111,44 +67,55 @@
     </div>
 
     <script>
-        // === 1. НАСТРОЙКИ SUPABASE (ВСТАВЬ СВОИ КЛЮЧИ) ===
         const SUPABASE_URL = 'https://xvadcrlhexeiieskxefh.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2YWRjcmxoZXhlaWllc2t4ZWZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2NjYzMzQsImV4cCI6MjEwMzI0MjMzNH0.FIUTCgdKE6NMocZPY95bfg9mnWh3kWaBkxp1OCX7UHk';
 
         const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
-
-        // === 2. ИНИЦИАЛИЗАЦИЯ TELEGRAM WEBAPP ===
         const tg = window.Telegram?.WebApp;
-        if (tg) {
-            tg.ready();
-            tg.expand();
-        }
+        if (tg) { tg.ready(); tg.expand(); }
 
-        // === УНИВЕРСАЛЬНЫЙ ПОИСК ID АКЦИИ (С ЗАЩИТОЙ ОТ ДВОЙНОГО КОДИРОВАНИЯ) ===
+        // === МНОГОУРОВНЕВЫЙ ПАРСЕР ID АКЦИИ ===
         function getCampaignId() {
-            // 1. Проверяем Telegram SDK start_param напрямую
-            if (window.Telegram?.WebApp?.initDataUnsafe?.start_param) {
-                return window.Telegram.WebApp.initDataUnsafe.start_param;
+            // 1. Telegram WebApp SDK initDataUnsafe
+            if (tg?.initDataUnsafe?.start_param) {
+                return tg.initDataUnsafe.start_param;
             }
 
-            // 2. Декодируем весь URL 2 раза (убираем %2522 двойного кодирования Telegram)
-            let rawUrl = window.location.href;
-            try {
-                rawUrl = decodeURIComponent(decodeURIComponent(rawUrl));
-            } catch (e) {
-                try { rawUrl = decodeURIComponent(rawUrl); } catch (e2) {}
+            // 2. Поиск из сырой строки initData
+            if (tg?.initData) {
+                try {
+                    const p = new URLSearchParams(tg.initData);
+                    if (p.get('start_param')) return p.get('start_param');
+                } catch(e){}
             }
 
-            // 3. Поиск UUID формата (8-4-4-4-12 символов) прямо в строке URL
-            const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-            const match = rawUrl.match(uuidRegex);
-            if (match) {
-                return match[0];
-            }
-
-            // 4. Обычные параметры GET
+            // 3. Поиск из URL Search (?campaign_id=... или ?startapp=...)
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('campaign_id')) return urlParams.get('campaign_id');
+            if (urlParams.get('startapp')) return urlParams.get('startapp');
+            if (urlParams.get('tgWebAppStartParam')) return urlParams.get('tgWebAppStartParam');
+
+            // 4. Поиск из URL Hash (#tgWebAppData=...)
+            const hash = window.location.hash.substring(1);
+            const hashParams = new URLSearchParams(hash);
+            if (hashParams.get('tgWebAppStartParam')) return hashParams.get('tgWebAppStartParam');
+            
+            const tgWebAppData = hashParams.get('tgWebAppData');
+            if (tgWebAppData) {
+                try {
+                    const parsed = new URLSearchParams(tgWebAppData);
+                    if (parsed.get('start_param')) return parsed.get('start_param');
+                } catch(e){}
+            }
+
+            // 5. Поиск UUID регулярным выражением во всем URL
+            let rawUrl = window.location.href;
+            for (let i = 0; i < 3; i++) {
+                try { rawUrl = decodeURIComponent(rawUrl); } catch (e) {}
+            }
+            const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+            const match = rawUrl.match(uuidRegex);
+            if (match) return match[0];
 
             return null;
         }
@@ -177,11 +144,19 @@
         let isDrawing = false;
         let isRevealed = false;
 
-        // Обновленная функция вывода ошибки (уже без технического отладочного мусора)
         async function loadCampaignDetails() {
             if (!CURRENT_CAMPAIGN_ID) {
                 greetingEl.innerText = 'Ошибка';
-                statusEl.innerHTML = '<span class="error-msg">Акция не найдена.<br>Откройте ссылку из админки.</span>';
+                statusEl.innerHTML = `
+                    <div class="error-msg">
+                        Акция не найдена.<br>Запустите по прямой ссылке.
+                    </div>
+                    <button class="debug-btn" onclick="toggleDebug()">Инфо для отладки</button>
+                    <div class="debug-info" id="debug-box">
+                        <b>URL:</b> ${window.location.href}<br>
+                        <b>initData:</b> ${tg?.initData || 'empty'}
+                    </div>
+                `;
                 codeEl.innerText = 'N/A';
                 return false;
             }
@@ -202,18 +177,23 @@
                     codeEl.innerText = data.promo_code;
                     return true;
                 } else {
-                    statusEl.innerText = 'Акция не найдена';
+                    greetingEl.innerText = 'Уведомление';
+                    statusEl.innerText = 'Акция не найдена в базе';
                     codeEl.innerText = 'EXPIRED';
                     return false;
                 }
             } catch (err) {
-                console.error('Ошибка:', err);
+                console.error(err);
                 statusEl.innerText = 'Ошибка загрузки';
                 return false;
             }
         }
 
-        // === 5. ПРОВЕРКА ЗАЩИТЫ ОТ АБУЗА ===
+        function toggleDebug() {
+            const box = document.getElementById('debug-box');
+            if (box) box.style.display = box.style.display === 'block' ? 'none' : 'block';
+        }
+
         async function startApp() {
             const userName = tg?.initDataUnsafe?.user?.first_name || 'Гость';
             greetingEl.innerText = `Привет, ${userName}!`;
@@ -221,13 +201,11 @@
             const isLoaded = await loadCampaignDetails();
             if (!isLoaded) return;
 
-            // Локальная проверка (уровень 1)
             if (CACHE_KEY && localStorage.getItem(CACHE_KEY) === 'true') {
                 showClaimedUI();
                 return;
             }
 
-            // Серверная проверка (уровень 2)
             if (db && CURRENT_CAMPAIGN_ID) {
                 try {
                     const { data } = await db
@@ -242,9 +220,7 @@
                         showClaimedUI();
                         return;
                     }
-                } catch (e) {
-                    console.error('Ошибка проверки в базе:', e);
-                }
+                } catch (e) {}
             }
 
             initCanvas();
@@ -256,12 +232,10 @@
             statusEl.innerHTML = `Вы уже забрали этот промокод:<br><span class="status-badge">Использовано</span>`;
         }
 
-        // === 6. ОТРИСОВКА И СТИРАНИЕ CANVAS ===
         function initCanvas() {
             canvas.style.display = 'block';
             ctx.fillStyle = '#b2bec3';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
             ctx.fillStyle = '#2d3436';
             ctx.font = 'bold 16px sans-serif';
             ctx.textAlign = 'center';
@@ -278,12 +252,10 @@
         function scratch(e) {
             if (!isDrawing || isRevealed) return;
             const { x, y } = getPos(e);
-            
             ctx.globalCompositeOperation = 'destination-out';
             ctx.beginPath();
             ctx.arc(x, y, 22, 0, Math.PI * 2);
             ctx.fill();
-            
             checkScratchPercentage();
         }
 
@@ -294,7 +266,6 @@
         canvas.addEventListener('mouseup', () => isDrawing = false);
         canvas.addEventListener('touchend', () => isDrawing = false);
 
-        // === 7. ФИКСАЦИЯ ПОБЕДЫ ===
         async function checkScratchPercentage() {
             if (isRevealed) return;
 
@@ -310,17 +281,12 @@
 
             if (percentage > 45) {
                 isRevealed = true;
-                
-                if (CACHE_KEY) {
-                    localStorage.setItem(CACHE_KEY, 'true');
-                }
+                if (CACHE_KEY) localStorage.setItem(CACHE_KEY, 'true');
 
                 if (db && CURRENT_CAMPAIGN_ID) {
                     db.from('claims').insert([
                         { campaign_id: CURRENT_CAMPAIGN_ID, user_telegram_id: userId }
-                    ]).then(({ error }) => {
-                        if (error) console.error('Ошибка записи в Supabase:', error.message);
-                    });
+                    ]);
                 }
 
                 if (tg?.HapticFeedback) {
