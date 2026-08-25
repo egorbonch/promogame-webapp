@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Конструктор PromoGame</title>
+    <!-- Подключаем Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            background: #1e293b;
+            padding: 30px;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 450px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 1px solid #334155;
+        }
+        h1 { font-size: 22px; margin-bottom: 8px; text-align: center; color: #38bdf8; }
+        p.sub { font-size: 14px; color: #94a3b8; margin-bottom: 24px; text-align: center; }
+        
+        .form-group { margin-bottom: 18px; }
+        label { display: block; font-size: 14px; margin-bottom: 6px; color: #cbd5e1; }
+        input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #475569;
+            background: #0f172a;
+            color: #fff;
+            font-size: 15px;
+            outline: none;
+        }
+        input:focus { border-color: #38bdf8; }
+        
+        button {
+            width: 100%;
+            padding: 14px;
+            border-radius: 8px;
+            border: none;
+            background: #0284c7;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover { background: #0369a1; }
+
+        .result-box {
+            margin-top: 24px;
+            padding: 16px;
+            background: #0f172a;
+            border: 1px dashed #38bdf8;
+            border-radius: 8px;
+            display: none;
+        }
+        .result-title { font-size: 13px; color: #94a3b8; margin-bottom: 8px; }
+        .link-text { 
+            font-size: 13px; 
+            color: #38bdf8; 
+            word-break: break-all; 
+            background: #1e293b; 
+            padding: 8px; 
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .copy-btn {
+            background: #334155;
+            padding: 8px;
+            font-size: 13px;
+        }
+        .copy-btn:hover { background: #475569; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Создать промо-акцию</h1>
+        <p class="sub">Заполните форму, чтобы сгенерировать ссылку на игру</p>
+
+        <form id="campaign-form">
+            <div class="form-group">
+                <label for="title">Название акции / Описание</label>
+                <input type="text" id="title" placeholder="например: Скидка -20% на кофе" required>
+            </div>
+
+            <div class="form-group">
+                <label for="promo">Промокод</label>
+                <input type="text" id="promo" placeholder="например: COFFEE20" required>
+            </div>
+
+            <button type="submit" id="submit-btn">Сгенерировать ссылку</button>
+        </form>
+
+        <div class="result-box" id="result-box">
+            <div class="result-title">Ссылка на WebApp акцию:</div>
+            <div class="link-text" id="generated-link">...</div>
+            <button class="copy-btn" id="copy-btn">Скопировать ссылку</button>
+        </div>
+    </div>
+
+    <script>
+        // 1. Конфигурация Supabase (Укажи свои данные)
+        const SUPABASE_URL = 'https://ТВОЙ_PROJECT_ID.supabase.co';
+        const SUPABASE_ANON_KEY = 'ТВОЙ_ANON_KEY';
+        const BOT_USERNAME = 'ИМЯ_ТВОЕГО_БОТА_bot'; // например: my_promogame_bot
+
+        const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const form = document.getElementById('campaign-form');
+        const submitBtn = document.getElementById('submit-btn');
+        const resultBox = document.getElementById('result-box');
+        const generatedLinkEl = document.getElementById('generated-link');
+        const copyBtn = document.getElementById('copy-btn');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            submitBtn.innerText = 'Создаем...';
+            submitBtn.disabled = true;
+
+            const title = document.getElementById('title').value.trim();
+            const promo = document.getElementById('promo').value.trim();
+
+            try {
+                // Записываем новую акцию в Supabase
+                const { data, error } = await db
+                    .from('campaigns')
+                    .insert([{
+                        owner_telegram_id: 0, // 0 для анонимного создания из админки
+                        title: title,
+                        promo_code: promo
+                    }])
+                    .select()
+                    .single();
+
+                if (error) throw error;
+
+                // Базовый URL страницы с игрой (Vercel)
+                const baseUrl = window.location.origin + '/index.html';
+                
+                // Формируем прямую ссылку на игру с передачей campaign_id
+                const gameUrl = `${baseUrl}?campaign_id=${data.id}`;
+
+                // Формируем прямую ссылку для Telegram (Direct App Link)
+                const tgLink = `https://t.me/${BOT_USERNAME}?startapp=${data.id}`;
+
+                generatedLinkEl.innerText = gameUrl;
+                resultBox.style.display = 'block';
+
+            } catch (err) {
+                alert('Ошибка создания акции: ' + err.message);
+            } finally {
+                submitBtn.innerText = 'Сгенерировать ссылку';
+                submitBtn.disabled = false;
+            }
+        });
+
+        copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(generatedLinkEl.innerText);
+            copyBtn.innerText = 'Скопировано!';
+            setTimeout(() => copyBtn.innerText = 'Скопировать ссылку', 2000);
+        });
+    </script>
+</body>
+</html>
