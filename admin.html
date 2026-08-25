@@ -56,64 +56,88 @@
     </div>
 
     <script>
-        // === УКАЖИТЕ ВАШИ НАСТРОЙКИ ===
-        const SUPABASE_URL = 'https://xvadcrlhexeiieskxefh.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2YWRjcmxoZXhlaWllc2t4ZWZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2NjYzMzQsImV4cCI6MjEwMzI0MjMzNH0.FIUTCgdKE6NMocZPY95bfg9mnWh3kWaBkxp1OCX7UHk';
-        
-        // Данные бота из BotFather:
-        const BOT_USERNAME = 'my_promogame_bot';   // без @
-        const APP_SHORT_NAME = 'PromoCode';               // Short Name из /newapp в BotFather
+        // 1. Загрузка списка акций с количеством активаций
+        async function loadCampaigns() {
+            const listElement = document.getElementById('campaignsList');
+            listElement.innerHTML = 'Загрузка...';
 
-        const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+            // Получаем акции и привязанные к ним claims
+            const { data: campaigns, error } = await supabaseClient
+                .from('campaigns')
+                .select(`
+                    *,
+                    claims (count)
+                `)
+                .order('created_at', { ascending: false });
 
-        const form = document.getElementById('campaign-form');
-        const submitBtn = document.getElementById('submit-btn');
-        const resultBox = document.getElementById('result-box');
-        const tgLinkEl = document.getElementById('tg-link');
-        const webLinkEl = document.getElementById('web-link');
-        const copyBtn = document.getElementById('copy-btn');
-
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            if (!db) { alert('Ошибка подключения к Supabase!'); return; }
-
-            submitBtn.innerText = 'Создаем...';
-            submitBtn.disabled = true;
-
-            const title = document.getElementById('title').value.trim();
-            const promo = document.getElementById('promo').value.trim();
-
-            try {
-                const { data, error } = await db
-                    .from('campaigns')
-                    .insert([{ owner_telegram_id: 0, title: title, promo_code: promo }])
-                    .select()
-                    .single();
-
-                if (error) throw error;
-
-                // Генерация прямых ссылок
-                const tgUrl = `https://t.me/${BOT_USERNAME}/${APP_SHORT_NAME}?startapp=${data.id}`;
-                const baseUrl = window.location.origin + window.location.pathname.replace('admin.html', 'index.html');
-                const webUrl = `${baseUrl}?campaign_id=${data.id}`;
-
-                tgLinkEl.innerText = tgUrl;
-                webLinkEl.innerText = webUrl;
-                resultBox.style.display = 'block';
-
-            } catch (err) {
-                alert('Ошибка создания акции: ' + err.message);
-            } finally {
-                submitBtn.innerText = 'Сгенерировать ссылку';
-                submitBtn.disabled = false;
+            if (error) {
+                alert('Ошибка загрузки: ' + error.message);
+                return;
             }
-        });
 
-        copyBtn.addEventListener('click', () => {
-            navigator.clipboard.writeText(tgLinkEl.innerText);
-            copyBtn.innerText = 'Скопировано!';
-            setTimeout(() => copyBtn.innerText = 'Скопировать Telegram ссылку', 2000);
-        });
+            listElement.innerHTML = campaigns.map(c => {
+                const claimCount = c.claims[0] ? c.claims[0].count : 0;
+                const statusBadge = c.is_active 
+                    ? '<span style="color: green;">● Активна</span>' 
+                    : '<span style="color: red;">● Отключена</span>';
+
+                return `
+                    <div class="campaign-card" style="border: 1px solid #ccc; padding: 15px; margin-bottom: 10px; border-radius: 8px;">
+                        <h3>${c.title} ${statusBadge}</h3>
+                        <p><strong>Скидка/Приз:</strong> ${c.discount_text}</p>
+                        <p><strong>Активаций:</strong> ${claimCount}</p>
+                        <p><small>ID: ${c.id}</small></p>
+                
+                        <button onclick="toggleCampaign('${c.id}', ${!c.is_active})">
+                            ${c.is_active ? 'Пауза' : 'Включить'}
+                        </button>
+                        <button onclick="exportClaimsToCSV('${c.id}', '${c.title}')">
+                            📥 Скачать CSV (Telegram ID)
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 2. Включение / Выключение акции
+        async function toggleCampaign(id, newStatus) {
+            const { error } = await supabaseClient
+                .from('campaigns')
+                .update({ is_active: newStatus })
+                .eq('id', id);
+
+            if (error) {
+                alert('Ошибка обновления: ' + error.message);
+            } else {
+                loadCampaigns();
+            }
+        }
+
+        // 3. Выгрузка списка Telegram ID участников в CSV
+        async function exportClaimsToCSV(campaignId, campaignTitle) {
+            const { data: claims, error } = await supabaseClient
+                .from('claims')
+                .select('telegram_id, created_at')
+                .eq('campaign_id', campaignId);
+
+            if (error || !claims.length) {
+                alert('Нет данных для экспорта');
+                return;
+            }
+
+            let csvContent = "data:text/csv;charset=utf-8,Telegram ID,Дата активации\n";
+            claims.forEach(row => {
+                csvContent += `${row.telegram_id},${new Date(row.created_at).toLocaleString()}\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `claims_${campaignTitle.replace(/\s+/g, '_')}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
     </script>
 </body>
 </html>
