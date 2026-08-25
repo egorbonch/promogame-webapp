@@ -120,23 +120,38 @@
             ctx.fillText('Сотри пальцем здесь', canvas.width / 2, canvas.height / 2 + 5);
         }
 
-        // --- 4. Проверка повторного участия в базе данных ---
+        // --- Проверка повторного участия ---
         async function checkAlreadyClaimed() {
-            if (!userId) return;
+            if (!userId) {
+                initCanvas();
+                return;
+            }
 
-            const { data, error } = await db
-                .from('claims')
-                .select('*')
-                .eq('campaign_id', CURRENT_CAMPAIGN_ID)
-                .eq('user_telegram_id', userId)
-                .maybeSingle();
+            try {
+                const { data, error } = await db
+                    .from('claims')
+                    .select('id')
+                    .eq('campaign_id', CURRENT_CAMPAIGN_ID)
+                    .eq('user_telegram_id', userId)
+                    .maybeSingle();
 
-            if (data) {
-                // Если пользователь уже получал приз, удаляем защитный слой без игры
-                canvas.remove();
-                document.getElementById('user-greeting').innerText = `С возвращением!`;
-                document.getElementById('prize-status').innerHTML = `Вы уже забрали этот промокод:<br><span class="already-claimed">Использовано</span>`;
-            } else {
+                if (error) {
+                console.error('Ошибка Supabase Select:', error.message);
+                    initCanvas();
+                    return;
+                }
+
+                if (data) {
+                    // Запись найдена: удаляем холст и показываем статус
+                    canvas.remove();
+                    document.getElementById('user-greeting').innerText = `С возвращением!`;
+                    document.getElementById('prize-status').innerHTML = `Вы уже забрали этот промокод:<br><span class="already-claimed">Использовано</span>`;
+                } else {
+                    // Записи нет: отрисовываем холст для стирания
+                    initCanvas();
+                }
+            } catch (err) {
+                console.error('Сетевая ошибка:', err);
                 initCanvas();
             }
         }
@@ -168,16 +183,22 @@
         canvas.addEventListener('mouseup', () => isDrawing = false);
         canvas.addEventListener('touchend', () => isDrawing = false);
 
-        // --- 6. Запись получения приза в Supabase ---
+        // --- Сохранение попытки в базу ---
         async function saveClaimToDb() {
             if (!userId) return;
-            
-            await db.from('claims').insert([
+    
+            const { error } = await db.from('claims').insert([
                 { 
                     campaign_id: CURRENT_CAMPAIGN_ID, 
                     user_telegram_id: userId 
                 }
             ]);
+
+            if (error) {
+                console.error('Ошибка сохранение в БД:', error.message);
+            } else {
+                console.log('Попытка успешно сохранена в базу!');
+            }
         }
 
         function checkScratchPercentage() {
